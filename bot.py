@@ -5,6 +5,8 @@ import os
 from dotenv import load_dotenv
 import sqlite3
 import re
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 # ================ تحميل المتغيرات ================
 load_dotenv()
@@ -134,7 +136,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         grade
     )
 
-    # ===== إرسال إشعار خاص للمشرف فقط (بدون رد للمستخدم) =====
+    # ===== إرسال إشعار خاص للمشرف فقط =====
     admin_msg = (
         "📥 طلب جديد من المجموعة\n"
         f"👤 الاسم: {user.first_name}\n"
@@ -152,9 +154,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
+# ================ خادم HTTP وهمي (ضروري لـ Render) ================
+class DummyHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+    def log_message(self, format, *args):
+        return  # إسكات السجلات غير الضرورية
+
+def start_dummy_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), DummyHandler)
+    server.serve_forever()
+
+# تشغيل الخادم في خيط منفصل حتى لا يعطل البوت
+threading.Thread(target=start_dummy_server, daemon=True).start()
+
 # ================ تشغيل البوت ================
 app = ApplicationBuilder().token(TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("🚀 البوت الذكي يعمل الآن (بدون ردود عامة)...")
+print("🚀 البوت الذكي يعمل الآن (مجاني – بدون API خارجي)...")
 app.run_polling()
